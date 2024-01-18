@@ -1,0 +1,6 @@
+# v1: 核心资源群组
+apiVersion: v1
+kind: Namespace
+# # 注意: Namespace资源是集群级别的,所以不要在metadata字段下再声明namesapce
+metadata:
+  name: demo

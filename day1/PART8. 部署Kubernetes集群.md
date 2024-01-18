@@ -78,7 +78,7 @@ kubeadm:**Kubernetes社区**提供的集群构建工具
 
 ## 8.7 Kubernetes集群示例环境
 
-见[附录1-K8S集群搭建]()
+[附录1-K8S集群搭建](https://github.com/rayallen20/K8SRepeat/blob/master/day1/%E9%99%84%E5%BD%951-K8S%E9%9B%86%E7%BE%A4%E6%90%AD%E5%BB%BA.md)
 
 ## 8.8 Kubernetes弃用Docker了吗?
 
