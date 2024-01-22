@@ -1,0 +1,20 @@
+# 核心群组API
+apiVersion: v1
+kind: Pod
+metadata:
+  # pod的标识名 在同一命名空间中必须唯一
+  name: pod-demo
+  # pod所属的命名空间
+  namespace: demo
+# 期望状态
+spec:
+  # 定义pod中的容器 该字段是一个list<[]Container]>类型的字段 可定义多个容器
+  containers:
+      # 容器名称 必选字段 在当前Pod中唯一
+    - name: demo
+      # 创建容器时使用的镜像
+      image: ikubernetes/demoapp:v1.0
+    - name: proxy
+      image: nginx:1.22
+  # 重启策略: 启动失败时重启
+  restartPolicy: OnFailure
