@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: startup-exec-demo
+  namespace: demo
+spec:
+  containers:
+    - name: demo
+      image: ikubernetes/demoapp:v1.0
+      imagePullPolicy: IfNotPresent
+      # 启动探针
+      startupProbe:
+        # 命令式探针
+        exec:
+          command: 
+          - '/bin/sh'
+          - '-c'
+          # 这个命令的返回值为0表示成功 返回1-255均表示失败
+          # 这里注意需要将整个命令字符串作为`-c`选项的单个参数
+          # 传递给`/bin/sh`
+          - 'test "$(curl -s 127.0.0.1/livez)" = "OK"'
+        # 首次探测延迟时长
+        initialDelaySeconds: 0
+        # 失败阈值
+        failureThreshold: 3
+        # 探测周期时长
+        periodSeconds: 5

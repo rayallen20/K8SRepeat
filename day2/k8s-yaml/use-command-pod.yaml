@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pod-demo
+  namespace: demo
+spec:
+  containers:
+    - name: demo
+      image: ikubernetes/demoapp:v1.0
+      # 指定创建容器时运行的命令列表
+      command:
+      - "/bin/sh"
+      - "-c"
+      # 为指定的命令传递的参数列表 通常在指定命令的前提条件下
+      # 仅使用 command 指令即可
+      args:
+      - "python3 /usr/local/bin/demo.py --port 8080"
+    - name: proxy
+      image: nginx:1.22
+  restartPolicy: OnFailure

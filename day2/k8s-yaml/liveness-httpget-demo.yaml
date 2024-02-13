@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: liveness-httpget-demo
+  namespace: demo
+spec:
+  containers:
+    - name: demo
+      image: ikubernetes/demoapp:v1.0
+      imagePullPolicy: IfNotPresent
+      livenessProbe:
+        # httpget探针
+        httpGet:
+          # 请求的uri
+          path: '/livez'
+          # 请求的端口
+          port: 80
+          # 使用的协议
+          scheme: HTTP
+        initialDelaySeconds: 5
+        periodSeconds: 5

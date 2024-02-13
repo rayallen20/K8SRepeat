@@ -1,0 +1,213 @@
+# 访问pod流量不可达排查过程
+
+## PART1. 问题背景
+
+在非pod所在节点上,使用`curl`命令访问pod,流量不可达:
+
+```
+root@longinus-master-1:~/k8s-yaml# kubectl get pods -n demo -o wide
+NAME           READY   STATUS    RESTARTS   AGE   IP            NODE              NOMINATED NODE   READINESS GATES
+pod-demo       2/2     Running   0          20h   10.244.1.14   longinus-node-1   <none>           <none>
+pod-env-demo   2/2     Running   0          19h   10.244.3.12   longinus-node-3   <none>           <none>
+root@longinus-master-1:~/k8s-yaml# curl 10.244.3.12
+^C
+```
+
+但在pod所在节点上,使用`curl`命令访问pod,流量则可达:
+
+```
+root@longinus-node-3:~# curl 10.244.3.12
+<!DOCTYPE html>
+<html>
+<head>
+<title>Welcome to nginx!</title>
+<style>
+html { color-scheme: light dark; }
+body { width: 35em; margin: 0 auto;
+font-family: Tahoma, Verdana, Arial, sans-serif; }
+</style>
+</head>
+<body>
+<h1>Welcome to nginx!</h1>
+<p>If you see this page, the nginx web server is successfully installed and
+working. Further configuration is required.</p>
+
+<p>For online documentation and support please refer to
+<a href="http://nginx.org/">nginx.org</a>.<br/>
+Commercial support is available at
+<a href="http://nginx.com/">nginx.com</a>.</p>
+
+<p><em>Thank you for using nginx.</em></p>
+</body>
+</html>
+```
+
+## PART2. 排查过程
+
+### 2.1 使用`traceroute`测试节点与pod之间的连通性
+
+```
+root@longinus-node-1:~# traceroute 10.244.3.12
+traceroute to 10.244.3.12 (10.244.3.12), 30 hops max, 60 byte packets
+ 1  QWRT.lan (192.168.1.1)  5.034 ms  4.751 ms  4.615 ms
+ 2  no-data (125.38.16.1)  7.946 ms  8.821 ms  8.716 ms
+ 3  116.130.216.21 (116.130.216.21)  8.596 ms dns117.online.tj.cn (117.8.110.117)  8.462 ms dns113.online.tj.cn (117.8.159.113)  7.322 ms
+ 4  dns106.online.tj.cn (117.8.201.106)  8.273 ms dns50.online.tj.cn (117.8.151.50)  12.775 ms dns118.online.tj.cn (117.8.202.118)  8.212 ms
+ 5  dns154.online.tj.cn (117.8.152.154)  8.196 ms 61.181.253.18 (61.181.253.18)  9.609 ms 61.181.253.230 (61.181.253.230)  17.786 ms
+ 6  * * *
+ 7  * * *
+ 8  * * *
+ 9  * * *
+10  * * *
+11  * * *
+12  * * *
+13  * * *
+14  * * *
+15  * * *
+16  * * *
+17  * * *^C
+```
+
+发现流量被路由到了K8S集群外部.
+
+### 2.2 使用`ip route`查看路由表
+
+```
+root@longinus-node-1:~# ip route
+default via 192.168.1.1 dev ens33 proto static 
+10.244.1.0/24 dev cni0 proto kernel scope link src 10.244.1.1 
+192.168.1.0/24 dev ens33 proto kernel scope link src 192.168.1.57 
+```
+
+从路由表信息来看,确实缺少到其他节点上Pod子网的路由,这解释了为什么从这个节点无法访问位于其他节点上的Pod.
+
+### 2.3 查看flannel在各节点上的运行情况
+
+```
+root@longinus-master-1:~/k8s-yaml# kubectl get pods -n kube-flannel -o wide
+NAME                    READY   STATUS    RESTARTS      AGE   IP             NODE                NOMINATED NODE   READINESS GATES
+kube-flannel-ds-2clkz   1/1     Running   0             28d   192.168.1.56   longinus-master-1   <none>           <none>
+kube-flannel-ds-2shql   1/1     Running   4 (33h ago)   27d   192.168.1.58   longinus-node-2     <none>           <none>
+kube-flannel-ds-scqks   1/1     Running   4 (21h ago)   27d   192.168.1.59   longinus-node-3     <none>           <none>
+kube-flannel-ds-vstfj   1/1     Running   3 (33h ago)   27d   192.168.1.57   longinus-node-1     <none>           <none>
+```
+
+确认flannel daemonset运行情况良好.
+
+### 2.4 查看flannel的日志
+
+```
+root@longinus-master-1:~/k8s-yaml# kubectl logs kube-flannel-ds-2clkz -n kube-flannel
+```
+
+```
+Defaulted container "kube-flannel" out of: kube-flannel, install-cni-plugin (init), install-cni (init)
+I0116 03:29:14.864069       1 main.go:209] CLI flags config: {etcdEndpoints:http://127.0.0.1:4001,http://127.0.0.1:2379 etcdPrefix:/coreos.com/network etcdKeyfile: etcdCertfile: etcdCAFile: etcdUsername: etcdPassword: version:false kubeSubnetMgr:true kubeApiUrl: kubeAnnotationPrefix:flannel.alpha.coreos.com kubeConfigFile: iface:[] ifaceRegex:[] ipMasq:true ifaceCanReach: subnetFile:/run/flannel/subnet.env publicIP: publicIPv6: subnetLeaseRenewMargin:60 healthzIP:0.0.0.0 healthzPort:0 iptablesResyncSeconds:5 iptablesForwardRules:true netConfPath:/etc/kube-flannel/net-conf.json setNodeNetworkUnavailable:true}
+W0116 03:29:14.866772       1 client_config.go:617] Neither --kubeconfig nor --master was specified.  Using the inClusterConfig.  This might not work.
+I0116 03:29:14.876441       1 kube.go:137] Waiting 10m0s for node controller to sync
+I0116 03:29:14.876643       1 kube.go:458] Starting kube subnet manager
+I0116 03:29:15.877309       1 kube.go:144] Node controller sync successful
+I0116 03:29:15.877425       1 main.go:229] Created subnet manager: Kubernetes Subnet Manager - longinus-master-1
+I0116 03:29:15.877567       1 main.go:232] Installing signal handlers
+I0116 03:29:15.878834       1 main.go:540] Found network config - Backend type: vxlan
+I0116 03:29:15.879153       1 match.go:206] Determining IP address of default interface
+I0116 03:29:15.881452       1 match.go:259] Using interface with name ens33 and address 192.168.1.56
+I0116 03:29:15.882163       1 match.go:281] Defaulting external address to interface address (192.168.1.56)
+I0116 03:29:15.882610       1 vxlan.go:141] VXLAN config: VNI=1 Port=0 GBP=false Learning=false DirectRouting=false
+I0116 03:29:15.929589       1 kube.go:479] Creating the node lease for IPv4. This is the n.Spec.PodCIDRs: [10.244.0.0/24]
+W0116 03:29:15.931470       1 main.go:593] no subnet found for key: FLANNEL_SUBNET in file: /run/flannel/subnet.env
+I0116 03:29:15.931499       1 main.go:479] Current network or subnet (10.244.0.0/16, 10.244.0.0/24) is not equal to previous one (0.0.0.0/0, 0.0.0.0/0), trying to recycle old iptables rules
+I0116 03:29:15.956663       1 main.go:354] Setting up masking rules
+I0116 03:29:15.958445       1 main.go:405] Changing default FORWARD chain policy to ACCEPT
+I0116 03:29:15.960123       1 iptables.go:290] generated 7 rules
+I0116 03:29:15.961246       1 main.go:433] Wrote subnet file to /run/flannel/subnet.env
+I0116 03:29:15.961278       1 main.go:437] Running backend.
+I0116 03:29:15.961443       1 iptables.go:290] generated 3 rules
+I0116 03:29:15.961570       1 vxlan_network.go:65] watching for new subnet leases
+I0116 03:29:15.971015       1 main.go:458] Waiting for all goroutines to exit
+I0116 03:29:15.978617       1 iptables.go:283] bootstrap done
+I0116 03:29:15.988165       1 iptables.go:283] bootstrap done
+I0116 03:44:00.838354       1 kube.go:479] Creating the node lease for IPv4. This is the n.Spec.PodCIDRs: [10.244.3.0/24]
+I0116 03:44:00.838632       1 subnet.go:159] Batch elem [0] is { lease.Event{Type:0, Lease:lease.Lease{EnableIPv4:true, EnableIPv6:false, Subnet:ip.IP4Net{IP:0xaf40300, PrefixLen:0x18}, IPv6Subnet:ip.IP6Net{IP:(*ip.IP6)(nil), PrefixLen:0x0}, Attrs:lease.LeaseAttrs{PublicIP:0xc0a8013b, PublicIPv6:(*ip.IP6)(nil), BackendType:"vxlan", BackendData:json.RawMessage{0x7b, 0x22, 0x56, 0x4e, 0x49, 0x22, 0x3a, 0x31, 0x2c, 0x22, 0x56, 0x74, 0x65, 0x70, 0x4d, 0x41, 0x43, 0x22, 0x3a, 0x22, 0x66, 0x61, 0x3a, 0x34, 0x35, 0x3a, 0x39, 0x36, 0x3a, 0x31, 0x62, 0x3a, 0x35, 0x36, 0x3a, 0x35, 0x66, 0x22, 0x7d}, BackendV6Data:json.RawMessage(nil)}, Expiration:time.Date(1, time.January, 1, 0, 0, 0, 0, time.UTC), Asof:0}} }
+I0116 03:44:03.700082       1 kube.go:479] Creating the node lease for IPv4. This is the n.Spec.PodCIDRs: [10.244.2.0/24]
+I0116 03:44:03.700118       1 subnet.go:159] Batch elem [0] is { lease.Event{Type:0, Lease:lease.Lease{EnableIPv4:true, EnableIPv6:false, Subnet:ip.IP4Net{IP:0xaf40200, PrefixLen:0x18}, IPv6Subnet:ip.IP6Net{IP:(*ip.IP6)(nil), PrefixLen:0x0}, Attrs:lease.LeaseAttrs{PublicIP:0xc0a8013a, PublicIPv6:(*ip.IP6)(nil), BackendType:"vxlan", BackendData:json.RawMessage{0x7b, 0x22, 0x56, 0x4e, 0x49, 0x22, 0x3a, 0x31, 0x2c, 0x22, 0x56, 0x74, 0x65, 0x70, 0x4d, 0x41, 0x43, 0x22, 0x3a, 0x22, 0x30, 0x36, 0x3a, 0x61, 0x39, 0x3a, 0x65, 0x36, 0x3a, 0x32, 0x39, 0x3a, 0x32, 0x37, 0x3a, 0x35, 0x66, 0x22, 0x7d}, BackendV6Data:json.RawMessage(nil)}, Expiration:time.Date(1, time.January, 1, 0, 0, 0, 0, time.UTC), Asof:0}} }
+I0116 03:53:35.979572       1 kube.go:479] Creating the node lease for IPv4. This is the n.Spec.PodCIDRs: [10.244.1.0/24]
+I0116 03:53:35.979677       1 subnet.go:159] Batch elem [0] is { lease.Event{Type:0, Lease:lease.Lease{EnableIPv4:true, EnableIPv6:false, Subnet:ip.IP4Net{IP:0xaf40100, PrefixLen:0x18}, IPv6Subnet:ip.IP6Net{IP:(*ip.IP6)(nil), PrefixLen:0x0}, Attrs:lease.LeaseAttrs{PublicIP:0xc0a80139, PublicIPv6:(*ip.IP6)(nil), BackendType:"vxlan", BackendData:json.RawMessage{0x7b, 0x22, 0x56, 0x4e, 0x49, 0x22, 0x3a, 0x31, 0x2c, 0x22, 0x56, 0x74, 0x65, 0x70, 0x4d, 0x41, 0x43, 0x22, 0x3a, 0x22, 0x32, 0x65, 0x3a, 0x39, 0x30, 0x3a, 0x63, 0x63, 0x3a, 0x63, 0x62, 0x3a, 0x64, 0x30, 0x3a, 0x35, 0x31, 0x22, 0x7d}, BackendV6Data:json.RawMessage(nil)}, Expiration:time.Date(1, time.January, 1, 0, 0, 0, 0, time.UTC), Asof:0}} }
+I0119 17:21:05.699235       1 kube.go:479] Creating the node lease for IPv4. This is the n.Spec.PodCIDRs: [10.244.2.0/24]
+I0119 17:21:05.700112       1 subnet.go:159] Batch elem [0] is { lease.Event{Type:0, Lease:lease.Lease{EnableIPv4:true, EnableIPv6:false, Subnet:ip.IP4Net{IP:0xaf40200, PrefixLen:0x18}, IPv6Subnet:ip.IP6Net{IP:(*ip.IP6)(nil), PrefixLen:0x0}, Attrs:lease.LeaseAttrs{PublicIP:0xc0a8013a, PublicIPv6:(*ip.IP6)(nil), BackendType:"vxlan", BackendData:json.RawMessage{0x7b, 0x22, 0x56, 0x4e, 0x49, 0x22, 0x3a, 0x31, 0x2c, 0x22, 0x56, 0x74, 0x65, 0x70, 0x4d, 0x41, 0x43, 0x22, 0x3a, 0x22, 0x62, 0x32, 0x3a, 0x31, 0x34, 0x3a, 0x34, 0x38, 0x3a, 0x34, 0x35, 0x3a, 0x32, 0x38, 0x3a, 0x62, 0x30, 0x22, 0x7d}, BackendV6Data:json.RawMessage(nil)}, Expiration:time.Date(1, time.January, 1, 0, 0, 0, 0, time.UTC), Asof:0}} }
+I0211 07:09:21.585261       1 kube.go:479] Creating the node lease for IPv4. This is the n.Spec.PodCIDRs: [10.244.1.0/24]
+I0211 07:09:21.585357       1 subnet.go:159] Batch elem [0] is { lease.Event{Type:0, Lease:lease.Lease{EnableIPv4:true, EnableIPv6:false, Subnet:ip.IP4Net{IP:0xaf40100, PrefixLen:0x18}, IPv6Subnet:ip.IP6Net{IP:(*ip.IP6)(nil), PrefixLen:0x0}, Attrs:lease.LeaseAttrs{PublicIP:0xc0a80139, PublicIPv6:(*ip.IP6)(nil), BackendType:"vxlan", BackendData:json.RawMessage{0x7b, 0x22, 0x56, 0x4e, 0x49, 0x22, 0x3a, 0x31, 0x2c, 0x22, 0x56, 0x74, 0x65, 0x70, 0x4d, 0x41, 0x43, 0x22, 0x3a, 0x22, 0x35, 0x36, 0x3a, 0x64, 0x36, 0x3a, 0x32, 0x39, 0x3a, 0x31, 0x35, 0x3a, 0x30, 0x62, 0x3a, 0x63, 0x36, 0x22, 0x7d}, BackendV6Data:json.RawMessage(nil)}, Expiration:time.Date(1, time.January, 1, 0, 0, 0, 0, time.UTC), Asof:0}} }
+I0211 07:12:19.893811       1 kube.go:479] Creating the node lease for IPv4. This is the n.Spec.PodCIDRs: [10.244.2.0/24]
+I0211 07:12:19.894086       1 subnet.go:159] Batch elem [0] is { lease.Event{Type:0, Lease:lease.Lease{EnableIPv4:true, EnableIPv6:false, Subnet:ip.IP4Net{IP:0xaf40200, PrefixLen:0x18}, IPv6Subnet:ip.IP6Net{IP:(*ip.IP6)(nil), PrefixLen:0x0}, Attrs:lease.LeaseAttrs{PublicIP:0xc0a8013a, PublicIPv6:(*ip.IP6)(nil), BackendType:"vxlan", BackendData:json.RawMessage{0x7b, 0x22, 0x56, 0x4e, 0x49, 0x22, 0x3a, 0x31, 0x2c, 0x22, 0x56, 0x74, 0x65, 0x70, 0x4d, 0x41, 0x43, 0x22, 0x3a, 0x22, 0x61, 0x65, 0x3a, 0x37, 0x61, 0x3a, 0x32, 0x63, 0x3a, 0x65, 0x33, 0x3a, 0x31, 0x35, 0x3a, 0x65, 0x65, 0x22, 0x7d}, BackendV6Data:json.RawMessage(nil)}, Expiration:time.Date(1, time.January, 1, 0, 0, 0, 0, time.UTC), Asof:0}} }
+I0211 17:39:28.397489       1 kube.go:479] Creating the node lease for IPv4. This is the n.Spec.PodCIDRs: [10.244.1.0/24]
+I0211 17:39:28.397612       1 subnet.go:159] Batch elem [0] is { lease.Event{Type:0, Lease:lease.Lease{EnableIPv4:true, EnableIPv6:false, Subnet:ip.IP4Net{IP:0xaf40100, PrefixLen:0x18}, IPv6Subnet:ip.IP6Net{IP:(*ip.IP6)(nil), PrefixLen:0x0}, Attrs:lease.LeaseAttrs{PublicIP:0xc0a80139, PublicIPv6:(*ip.IP6)(nil), BackendType:"vxlan", BackendData:json.RawMessage{0x7b, 0x22, 0x56, 0x4e, 0x49, 0x22, 0x3a, 0x31, 0x2c, 0x22, 0x56, 0x74, 0x65, 0x70, 0x4d, 0x41, 0x43, 0x22, 0x3a, 0x22, 0x38, 0x61, 0x3a, 0x33, 0x33, 0x3a, 0x33, 0x32, 0x3a, 0x66, 0x38, 0x3a, 0x34, 0x38, 0x3a, 0x65, 0x33, 0x22, 0x7d}, BackendV6Data:json.RawMessage(nil)}, Expiration:time.Date(1, time.January, 1, 0, 0, 0, 0, time.UTC), Asof:0}} }
+I0211 17:42:12.273831       1 kube.go:479] Creating the node lease for IPv4. This is the n.Spec.PodCIDRs: [10.244.2.0/24]
+I0211 17:42:12.273892       1 subnet.go:159] Batch elem [0] is { lease.Event{Type:0, Lease:lease.Lease{EnableIPv4:true, EnableIPv6:false, Subnet:ip.IP4Net{IP:0xaf40200, PrefixLen:0x18}, IPv6Subnet:ip.IP6Net{IP:(*ip.IP6)(nil), PrefixLen:0x0}, Attrs:lease.LeaseAttrs{PublicIP:0xc0a8013a, PublicIPv6:(*ip.IP6)(nil), BackendType:"vxlan", BackendData:json.RawMessage{0x7b, 0x22, 0x56, 0x4e, 0x49, 0x22, 0x3a, 0x31, 0x2c, 0x22, 0x56, 0x74, 0x65, 0x70, 0x4d, 0x41, 0x43, 0x22, 0x3a, 0x22, 0x39, 0x36, 0x3a, 0x32, 0x35, 0x3a, 0x39, 0x37, 0x3a, 0x61, 0x37, 0x3a, 0x35, 0x33, 0x3a, 0x32, 0x34, 0x22, 0x7d}, BackendV6Data:json.RawMessage(nil)}, Expiration:time.Date(1, time.January, 1, 0, 0, 0, 0, time.UTC), Asof:0}} }
+I0212 05:53:41.440910       1 kube.go:479] Creating the node lease for IPv4. This is the n.Spec.PodCIDRs: [10.244.3.0/24]
+I0212 05:53:41.441329       1 subnet.go:159] Batch elem [0] is { lease.Event{Type:0, Lease:lease.Lease{EnableIPv4:true, EnableIPv6:false, Subnet:ip.IP4Net{IP:0xaf40300, PrefixLen:0x18}, IPv6Subnet:ip.IP6Net{IP:(*ip.IP6)(nil), PrefixLen:0x0}, Attrs:lease.LeaseAttrs{PublicIP:0xc0a8013b, PublicIPv6:(*ip.IP6)(nil), BackendType:"vxlan", BackendData:json.RawMessage{0x7b, 0x22, 0x56, 0x4e, 0x49, 0x22, 0x3a, 0x31, 0x2c, 0x22, 0x56, 0x74, 0x65, 0x70, 0x4d, 0x41, 0x43, 0x22, 0x3a, 0x22, 0x38, 0x61, 0x3a, 0x62, 0x34, 0x3a, 0x36, 0x62, 0x3a, 0x66, 0x66, 0x3a, 0x63, 0x38, 0x3a, 0x65, 0x63, 0x22, 0x7d}, BackendV6Data:json.RawMessage(nil)}, Expiration:time.Date(1, time.January, 1, 0, 0, 0, 0, time.UTC), Asof:0}} }
+```
+
+从日志中也没有看到明显的错误.
+
+## PART3. 解决方案
+
+### 3.1 尝试重启flannel
+
+```
+root@longinus-master-1:~/k8s-yaml# kubectl delete pods -n kube-flannel --selector app=flannel
+pod "kube-flannel-ds-2clkz" deleted
+pod "kube-flannel-ds-2shql" deleted
+pod "kube-flannel-ds-scqks" deleted
+pod "kube-flannel-ds-vstfj" deleted
+```
+
+```
+root@longinus-master-1:~/k8s-yaml# kubectl get pods -n kube-flannel
+NAME                    READY   STATUS    RESTARTS   AGE
+kube-flannel-ds-4qcmb   1/1     Running   0          9s
+kube-flannel-ds-h7p7q   1/1     Running   0          9s
+kube-flannel-ds-hn9ws   1/1     Running   0          9s
+kube-flannel-ds-wf562   1/1     Running   0          9s
+```
+
+静态pod会在删除后自动重建,因此没有手动重建的过程,删除即可.
+
+### 3.2 查看路由表
+
+```
+root@longinus-master-1:~/k8s-yaml# ip route
+default via 192.168.1.1 dev ens33 proto static 
+10.244.1.0/24 via 10.244.1.0 dev flannel.1 onlink 
+10.244.2.0/24 via 10.244.2.0 dev flannel.1 onlink 
+10.244.3.0/24 via 10.244.3.0 dev flannel.1 onlink 
+192.168.1.0/24 dev ens33 proto kernel scope link src 192.168.1.56 
+```
+
+### 3.3 尝试访问pod
+
+```
+root@longinus-master-1:~/k8s-yaml# curl 10.244.3.12
+<!DOCTYPE html>
+<html>
+<head>
+<title>Welcome to nginx!</title>
+<style>
+html { color-scheme: light dark; }
+body { width: 35em; margin: 0 auto;
+font-family: Tahoma, Verdana, Arial, sans-serif; }
+</style>
+</head>
+<body>
+<h1>Welcome to nginx!</h1>
+<p>If you see this page, the nginx web server is successfully installed and
+working. Further configuration is required.</p>
+
+<p>For online documentation and support please refer to
+<a href="http://nginx.org/">nginx.org</a>.<br/>
+Commercial support is available at
+<a href="http://nginx.com/">nginx.com</a>.</p>
+
+<p><em>Thank you for using nginx.</em></p>
+</body>
+</html>
+```

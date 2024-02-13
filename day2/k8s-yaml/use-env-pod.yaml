@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pod-env-demo
+  namespace: demo
+spec:
+  containers:
+    - name: demo
+      image: ikubernetes/demoapp:v1.0
+      # 指定环境变量
+      env:
+        # 这种方式的前提是镜像支持指定的环境变量
+        # 否则你即使能通过这种方式把环境变量传到容器中
+        # 应用不读取该环境变量 也还是没有意义
+      - name: PORT
+        value: "8080"
+      - name: ANOTHER_PORT
+        # 使用变量的方式读取其他环境变量的值
+        value: $(PORT)
+        # 环境变量的字面量中有$字符时 使用$$来逃逸$字符
+      - name: PASSWORD
+        value: "pass$$word"
+    - name: proxy
+      image: nginx:1.22
+  restartPolicy: OnFailure
