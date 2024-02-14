@@ -604,3 +604,96 @@ NAME                      READY   STATUS    RESTARTS   AGE     IP            NOD
 ...
 pod-probe-demo            1/1     Running   0          43s     10.244.3.19   longinus-node-3   <none>           <none>
 ```
+
+## 4.6 容器的钩子
+
+在Pod的生命周期中,除了上述的三种探针外,还有2个生命周期的钩子:
+
+- postStart:容器启动后的钩子
+- preStop:容器关闭前的钩子
+
+注意:钩子和容器内的进程是同时运行的.
+
+这两个钩子使得我们可以在某些特定环境下做一些特定的操作.举一个不太恰当的例子:
+
+现有一Pod,Pod内运行了一个容器,容器内运行了一个进程,要求如下:
+
+1. 该进程所需的配置文件要求通过网络下载.且要求文件下载完成后再启动这个进程
+2. 该进程启动后会创建一些文件,其中某些需要被持久化,而某些不需要.假定该容器已经被挂载了一个卷,且这些文件都被写入到了这个卷上.要求容器销毁前删除那些不需要被持久化的文件
+
+![容器钩子的作用](./img/PART4/容器钩子的作用.jpg)
+
+钩子的工作机制和探针一样,也是分为3种:
+
+- Exec Action
+- TcpSocket Action
+- HTTPGet Action
+
+```
+root@longinus-master-1:~/k8s-yaml# kubectl explain pods.spec.containers.lifecycle.postStart
+KIND:       Pod
+VERSION:    v1
+
+FIELD: postStart <LifecycleHandler>
+
+DESCRIPTION:
+    PostStart is called immediately after a container is created. If the handler
+    fails, the container is terminated and restarted according to its restart
+    policy. Other management of the container blocks until the hook completes.
+    More info:
+    https://kubernetes.io/docs/concepts/containers/container-lifecycle-hooks/#container-hooks
+    LifecycleHandler defines a specific action that should be taken in a
+    lifecycle hook. One and only one of the fields, except TCPSocket must be
+    specified.
+    
+FIELDS:
+  exec	<ExecAction>
+    Exec specifies the action to take.
+
+  httpGet	<HTTPGetAction>
+    HTTPGet specifies the http request to perform.
+
+  tcpSocket	<TCPSocketAction>
+    Deprecated. TCPSocket is NOT supported as a LifecycleHandler and kept for
+    the backward compatibility. There are no validation of this field and
+    lifecycle hooks will fail in runtime when tcp handler is specified.
+```
+
+注意:钩子的工作机制和探针相同,但钩子和探针的意义不同.钩子是为了当容器运行到某个阶段时做某些操作;而探针是为了检测容器内的进程工作是否正常.二者的意义是不同的.
+
+### 4.6.1 启动后钩子的示例
+
+```
+root@longinus-master-1:~/k8s-yaml# vim lifecycle-poststart-pod.yaml
+root@longinus-master-1:~/k8s-yaml# cat lifecycle-poststart-pod.yaml
+```
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: lifecycle-poststart-pod
+  namespace: demo
+spec:
+  containers:
+    - name: demo
+      image: ikubernetes/demoapp:v1.0
+      imagePullPolicy: IfNotPresent
+      lifecycle:
+        # 容器启动后钩子
+        postStart:
+          exec:
+            command:
+              # 容器启动后创建一个目录
+            - "/bin/sh"
+            - "-c"
+            - "mkdir /data/"
+```
+
+```
+root@longinus-master-1:~/k8s-yaml# kubectl exec -it lifecycle-poststart-pod -n demo -- /bin/sh
+[root@lifecycle-poststart-pod /]# ls
+bin    data   dev    etc    home   lib    media  mnt    opt    proc   root   run    sbin   srv    sys    tmp    usr    var
+```
+
+可以看到,`data`目录成功被创建出来了
