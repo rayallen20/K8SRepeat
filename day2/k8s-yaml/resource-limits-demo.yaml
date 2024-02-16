@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: memleak-pod
+  namespace: demo
+  labels:
+    app: memleak
+spec:
+  containers:
+  - name: simmemleak
+    image: ikubernetes/simmemleak
+    imagePullPolicy: IfNotPresent
+    resources:
+      # 资源需求 64MB内存 1个逻辑CPU
+      requests:
+        memory: "64Mi"
+        cpu: "1"
+      # 资源限制 64MB内存 1个逻辑CPU
+      limits:
+        memory: "64Mi"
+        cpu: "1"
