@@ -1,0 +1,22 @@
+spec:
+  volumes:
+  # 卷名称标识,仅可使用DNS标签格式的字符,在当前Pod中必须惟一
+  - name: <string>
+  # 存储卷插件及具体的目标存储供给方的相关配置
+  VOL_TYPE: <Object>
+  containers:
+  - name: …
+    image: …
+    volumeMounts:
+      # 要挂载的存储卷的名称,必须匹配存储卷列表中某项的定义
+    - name: <string>
+      # 容器文件系统上的挂载点路径
+      mountPath: <string>
+      # 是否挂载为只读模式,默认为否
+      readOnly: <boolean>
+      # 挂载存储卷上的一个子目录至指定的挂载点
+      subPath: <string>
+      # 挂载由指定的模式匹配到的存储卷的文件或目录至挂载点
+      subPathExpr: <string>
+      # 挂载卷的传播模式
+      mountPropagation: <string>
