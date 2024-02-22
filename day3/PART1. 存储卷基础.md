@@ -120,6 +120,7 @@ Pod在规范中需要指定其包含的卷以及这些卷在容器中的挂载�
 - ConfigMap
 - DownwardAPI
 - Projected
+- Persistent Volume Claim
 
 ### 1.4.2 Out-Tree存储卷插件
 

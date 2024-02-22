@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pods-with-hostpath-vol
+  namespace: demo
+spec:
+  # 指定要调度的目标节点名称
+  nodeName: longinus-node-2
+  containers:
+  - name: redis
+    image: redis:7-alpine
+    imagePullPolicy: IfNotPresent
+    volumeMounts:
+    - name: redisdata
+      mountPath: /data
+  volumes:
+  - name: redisdata
+    hostPath:
+      # 存储类型
+      type: DirectoryOrCreate
+      # 关联的宿主机目录路径
+      path: /data/redis

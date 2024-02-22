@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pod-with-nfs-vol
+  namespace: demo
+spec:
+  nodeName: longinus-node-1
+  containers:
+  - name: redis
+    image: redis:7-alpine
+    imagePullPolicy: IfNotPresent
+    volumeMounts:
+    - name: redisdata
+      mountPath: /data
+  volumes:
+  - name: redisdata
+    nfs:
+      # pod定义中的volumes.nfs.server
+      # 可以写nfs服务器的IP地址 也可以写域名
+      server: 192.168.1.60
+      path: /data/redis
+      # 是否只读 默认为false
+      readOnly: false

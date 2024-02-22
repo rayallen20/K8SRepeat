@@ -1,0 +1,31 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pods-with-emptydir-vol
+  namespace: demo
+spec:
+  volumes:
+    # 存储卷名称
+  - name: data
+    emptyDir:
+      # 存储介质 default:磁盘 Memory:内存
+      medium: Memory
+      sizeLimit: 16Mi
+  containers:
+  - image: ikubernetes/admin-box:v1.2
+    name: admin
+    command: ["/bin/sh", "-c"]
+    args: ["sleep 99999"]
+    # 容器挂载点列表
+    volumeMounts:
+      # 指定要挂载的存储卷名称
+    - name: data
+      mountPath: /data
+  - image: ikubernetes/demoapp:v1.0
+    name: demoapp
+    volumeMounts:
+      # 此处2个容器挂载了同一个存储卷
+    - name: data
+      mountPath: /var/www/html
+  dnsPolicy: ClusterFirst
+  restartPolicy: Always
