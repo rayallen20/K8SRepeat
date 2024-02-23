@@ -1,0 +1,31 @@
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  # PV的名称
+  name: pv-nfs-demo
+  # PV是集群级别资源 不需要定义namespace
+spec:
+  capacity:
+    # 定义存储空间上限
+    storage: 5Gi
+  # 定义存储空间模型为文件系统
+  volumeMode: Filesystem
+  # 定义访问模型
+  accessModes:
+  # 定义访问模型为多路读写
+  - ReadWriteMany
+  # 支持多路读写则必然支持单路读写
+  - ReadWriteOnce
+  # 支持多路读写则必然支持多路只读
+  - ReadOnlyMany
+  # 定义回收策略为删除PVC后保留PV不动
+  persistentVolumeReclaimPolicy: Retain
+  # NFS文件系统独有的配置
+  mountOptions:
+  - hard
+  - nfsvers=4.1
+  # PV使用的存储插件
+  nfs:
+    # 定义存储细节
+    path:  "/data/redis02"
+    server: 192.168.1.60

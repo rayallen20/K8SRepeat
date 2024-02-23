@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pod-with-pvc-demo
+  namespace: demo
+spec:
+  volumes:
+    # 存储卷名称
+  - name: redis-pvc-vol
+    # 指明存储卷插件类型为PVC插件
+    persistentVolumeClaim:
+      # 指明要使用的PVC的名称
+      claimName: pvc-demo
+  containers:
+  - name: redis
+    image: redis:7-alpine
+    imagePullPolicy: IfNotPresent
+    ports:
+    - containerPort: 6379
+      name: redisport
+    # 容器内的挂载点列表
+    volumeMounts:
+    - mountPath: /data
+      name: redis-pvc-vol
+  

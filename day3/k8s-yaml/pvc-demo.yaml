@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: pvc-demo
+  # PVC是名称空间级别的资源 可以定义namespace
+  namespace: demo
+spec:
+  # 定义期望对端的访问模式
+  accessModes: 
+  # 定义期望对端的访问模式为多路读写
+  - "ReadWriteMany"
+  # 定义期望对端的访问模式为单路读写
+  - "ReadWriteOnce"
+  # 定义期望对端的访问模式为多路只读
+  - "ReadOnlyMany"
+  # 定义期望对端的存储模型为文件系统
+  volumeMode: Filesystem
+  # 定义期望对端的空间大小
+  resources:
+    # 定义期望对端的空间大小至少为3G
+    requests:
+      storage: 3Gi
+    # 定义期望对端的空间大小至多为10G
+    limits:
+      storage: 10Gi
