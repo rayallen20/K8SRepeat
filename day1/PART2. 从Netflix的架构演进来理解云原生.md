@@ -121,7 +121,7 @@
 
 ![最终实现的系统架构图](./img/PART2/最终实现的系统架构图.png)
 
-## 2.7 容器技术和Spring Cloud框架的诞生
+## 2.8 容器技术和Spring Cloud框架的诞生
 
 Netflix以上故事发生的时间点:2013年之前
 
@@ -141,17 +141,17 @@ Netflix以上故事发生的时间点:2013年之前
 	- 几乎是从根本上,解决了IaaS时期"跨云难(虚拟机和镜像迁移、共享等)"的问题
 	- 为应用发布和持续发布提供了重要支撑
 
-## 2.8 Spring Cloud的核心目标
+## 2.9 Spring Cloud的核心目标
 
 ![SpringCloud的核心目标](./img/PART2/SpringCloud的核心目标.png)
 
-### 2.8.1 主流的Spring Cloud的实现
+### 2.9.1 主流的Spring Cloud的实现
 
 Spring Cloud Netflix ≠ Spring Cloud
 
 ![SpringCloud的实现](./img/PART2/SpringCloud的实现.png)
 
-### 2.8.2 12要素
+### 2.9.2 12要素
 
 2015年提出的12要素应用到底表达了什么？
 
@@ -174,6 +174,6 @@ Spring Cloud Netflix ≠ Spring Cloud
 
 ![12要素](./img/PART2/12要素.png)
 
-## 2.9 第一阶段的"云原生"小结
+## 2.10 第一阶段的"云原生"小结
 
 ![云原生小结](./img/PART2/云原生小结.png)
