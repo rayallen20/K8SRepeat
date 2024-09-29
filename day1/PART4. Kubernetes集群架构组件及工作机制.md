@@ -22,7 +22,7 @@ Kubernetes属于典型的Server-Client形式的二层架构
 
 - Master主要由API Server、Controller-Manager和Scheduler三个组件,以及一个用于集群状态存储的Etcd存储服务组成,它们构成整个集群的控制平面
 	- kube-API Server:k8s对外提供的数据范式,是一种声明式API.用于接收用户请求并完成集群协同工作,可以认为是整个集群的总线,但是API Server是无状态的、HTTP/HTTPS协议的Restful API,仅提供数据CRUD的接口
-	- etcd:存储k8s的元数据
+	- etcd:存储k8s的元数据(Pod的定义)
 	- kube-scheduler:在用户提交创建资源的请求后,决策该资源最终运行该资源的节点,并将该资源绑定(所谓绑定是指将选定的节点信息填充到资源声明的yaml文件中,这个工作由kube-scheduler来完成)到选定的节点上.被选定节点上的kubelet可以观察到有新的资源被绑定到自身所在的节点上.
 	- kube-controller-manager:用于把用户通过API Server提交的请求,遵循某种特定API规范实例化出来,并管理这些实例.当有节点(物理意义上的节点)宕机时,controller会重新请求API Server,在其他节点上再次创建资源,以便满足期望
 - 而每个Node节点则主要包含Kubelet、Kube Proxy及容器运行时(docker是最为常用的实现)三个组件,它们承载运行各类应用容器
