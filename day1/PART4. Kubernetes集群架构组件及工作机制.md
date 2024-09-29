@@ -26,7 +26,7 @@ Kubernetes属于典型的Server-Client形式的二层架构
 	- kube-scheduler:在用户提交创建资源的请求后,决策该资源最终运行该资源的节点,并将该资源绑定(所谓绑定是指将选定的节点信息填充到资源声明的yaml文件中,这个工作由kube-scheduler来完成)到选定的节点上.被选定节点上的kubelet可以观察到有新的资源被绑定到自身所在的节点上.
 	- kube-controller-manager:用于把用户通过API Server提交的请求,遵循某种特定API规范实例化出来,并管理这些实例.当有节点(物理意义上的节点)宕机时,controller会重新请求API Server,在其他节点上再次创建资源,以便满足期望
 - 而每个Node节点则主要包含Kubelet、Kube Proxy及容器运行时(docker是最为常用的实现)三个组件,它们承载运行各类应用容器
-	- kubelet:从API Server处取出资源定义,然后通过CRI接口调用本机的容器运行时,创建容器.容器创建完毕后,kubelet会持续监视容器,定期将容器的健康状态上报给API Server.当被kubelet监视的pod出现故障时,kubelet会尝试重启该pod以便解决故障
+	- kubelet:从API Server处取出资源定义,然后通过CRI接口调用本机的容器运行时,创建容器.容器创建完毕后,kubelet会持续监视容器,定期将容器的健康状态上报给API Server.当被kubelet监视的pod出现故障时,kubelet会尝试重启该pod以便解决故障(有点像kube-API Server的Client)
 	- kube-proxy:为各个pod提供负载均衡.每个节点上的kube-proxy可以将当前节点的内核转换为一个可编程的负载均衡器
 
 ![Kubernetes集群架构.png](./img/PART4/Kubernetes集群架构.png)
